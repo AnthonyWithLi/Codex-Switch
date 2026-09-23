@@ -1,0 +1,25 @@
+# Local configuration containing private device/account details
+config.json
+
+# Local runtime logs and sensitive credentials
+sync.log
+*.log
+auth*.json
+account_backup/
+csw-msg-*.txt
+*.tmp
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary build binaries
+*.build.exe
+CodexRepair.build.exe
+
+# Editor & OS files
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

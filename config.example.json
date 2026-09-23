@@ -1,0 +1,28 @@
+{
+  "_comment": "Codex-Switch 配置文件模板。重命名为 config.json 即可生效。",
+  "python": "python.exe",
+  "remote_host": "",
+  "remote_proxy": "",
+  "remote_csw": "~/.local/bin/csw",
+  "remote_local_csw": "~/.local/bin/codex_local_csw.py",
+  "app_user_model_id": "OpenAI.CodexRepair",
+  "accounts": [
+    {
+      "name": "personal",
+      "file": "auth.personal.json",
+      "account_id": "00000000-0000-0000-0000-000000000000",
+      "email": "user@example.com",
+      "surface": "personal"
+    },
+    {
+      "name": "work-team",
+      "file": "auth.team.json",
+      "account_id": "11111111-1111-1111-1111-111111111111",
+      "email": "user@example.com",
+      "surface": "work"
+    }
+  ],
+  "aliases": {
+    "my-team": "work-team"
+  }
+}
