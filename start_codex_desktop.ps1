@@ -209,6 +209,8 @@ function Show-Popup {
 }
 
 $script:SshOpts = @(
+    "-o", "ClearAllForwardings=yes",
+    "-o", "LogLevel=ERROR",
     "-o", "BatchMode=yes",
     "-o", "ConnectTimeout=12"
 )

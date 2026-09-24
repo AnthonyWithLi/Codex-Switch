@@ -1598,6 +1598,8 @@ def emit_result(title: str, code: int, summary: dict[str, Any], lines: list[str]
 def ssh_command(host: str, remote: str) -> list[str]:
     return [
         "ssh",
+        "-o", "ClearAllForwardings=yes",
+        "-o", "LogLevel=ERROR",
         "-o", "BatchMode=yes",
         "-o", "ConnectTimeout=12",
         host,
