@@ -16,7 +16,9 @@ __pycache__/
 
 # Temporary build binaries
 *.build.exe
+*.old.exe
 CodexRepair.build.exe
+*.png
 
 # Editor & OS files
 .vscode/

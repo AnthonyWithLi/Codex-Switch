@@ -23,13 +23,30 @@ internal static class Program {
     [STAThread]
     private static int Main(string[] args) {
         Native.SetCurrentProcessExplicitAppUserModelID("OpenAI.CodexRepair");
-        if (args == null || args.Length < 1) {
-            Alert("快捷方式参数丢失，启动器不知道该运行哪份脚本。请重新运行 start_codex_desktop.ps1 -InstallShortcut。");
-            return 2;
+        string ps1 = null;
+        if (args != null && args.Length >= 1) {
+            ps1 = args[0];
         }
-        string ps1 = args[0];
-        if (!File.Exists(ps1)) {
-            Alert("找不到脚本：\n" + ps1);
+
+        string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        if (string.IsNullOrEmpty(ps1) || !File.Exists(ps1)) {
+            if (!string.IsNullOrEmpty(ps1)) {
+                string fileName = Path.GetFileName(ps1);
+                string localSameName = Path.Combine(baseDir, fileName);
+                if (File.Exists(localSameName)) {
+                    ps1 = localSameName;
+                }
+            }
+            if (string.IsNullOrEmpty(ps1) || !File.Exists(ps1)) {
+                string defaultScript = Path.Combine(baseDir, "start_codex_desktop.ps1");
+                if (File.Exists(defaultScript)) {
+                    ps1 = defaultScript;
+                }
+            }
+        }
+
+        if (string.IsNullOrEmpty(ps1) || !File.Exists(ps1)) {
+            Alert("找不到脚本：\n" + (ps1 ?? "未提供参数") + "\n\n请检查脚本是否位于启动器同级目录下。");
             return 3;
         }
         var psi = new ProcessStartInfo();
