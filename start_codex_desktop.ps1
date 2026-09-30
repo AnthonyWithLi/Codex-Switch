@@ -386,7 +386,7 @@ function Get-LocalCodexProcesses {
             if ($path -match 'OpenAI\.Codex_') { return $true }
             return $false
         } |
-        Select-Object -ExpandProperty Name -Unique
+        Select-Object -Property Name, ProcessId
 }
 
 function Format-SnapshotMeta {
@@ -1282,7 +1282,8 @@ try {
         }
         $procs = @(Get-LocalCodexProcesses)
         if ($procs.Count -gt 0) {
-            throw "本机仍有 Codex 进程（$($procs -join ', ')）。请先完全退出后再点一次。"
+            $descList = $procs | ForEach-Object { "$($_.Name) [PID $($_.ProcessId)]" }
+            throw "本机仍有 Codex 进程（$($descList -join ', ')）。请先完全退出或在任务管理器结束对应进程后再试。"
         }
         # 选号界面上每个账号已经标了会话状态（"会话探针 401，可试强制切换"）。
         # 用户看过还点它，就是要切 —— 直接切，不再弹第二个确认框。
