@@ -341,6 +341,7 @@ def snapshot_meta(home: Path, name: str, probe: bool = False) -> dict[str, Any]:
         "workspace_short": "",
         "token_status": "missing" if not info["ok"] else "unchecked",
         "token_detail": "",
+        "usage": {},
     }
     if not info["ok"]:
         return meta
@@ -358,17 +359,17 @@ def snapshot_meta(home: Path, name: str, probe: bool = False) -> dict[str, Any]:
         result = probe_token(data)
         meta["token_status"] = result["status"]
         meta["token_detail"] = result["detail"]
+        meta["usage"] = result.get("usage") or {}
     except Exception as exc:  # noqa: BLE001 - a probe must never break the picker
         meta["token_status"] = "unknown"
         meta["token_detail"] = str(exc)
     return meta
 
 
-# A cheap, read-only endpoint that Codex Desktop itself calls at startup. It is
-# only used to answer "does this account still have a live session?". Never
-# call /oauth/token for this: refreshing rotates the refresh token, and a
-# rotated token that we then discard would kill this machine's snapshot.
-PROBE_URL = "https://chatgpt.com/backend-api/codex/models?client_version=0.154.0"
+# The usage endpoint provides live rate limits (5h limit & weekly limit) as well
+# as checking session validity (401 if revoked). Never call /oauth/token for
+# this: refreshing rotates the refresh token.
+PROBE_URL = "https://chatgpt.com/backend-api/wham/usage"
 PROBE_TIMEOUT = 15.0
 
 # Local proxy ports worth adopting when nothing else says how to get out. On the
@@ -446,6 +447,7 @@ def probe_token(data: dict[str, Any] | None, timeout: float = PROBE_TIMEOUT) -> 
         res = {
             "status": "expired",
             "detail": "access token expired; Codex will refresh it from the refresh token on use",
+            "usage": {},
         }
         _PROBE_CACHE[cache_key] = res
         return dict(res)
@@ -462,8 +464,25 @@ def probe_token(data: dict[str, Any] | None, timeout: float = PROBE_TIMEOUT) -> 
         with urllib.request.urlopen(
             request, timeout=timeout, context=ssl.create_default_context()
         ) as response:
-            response.read(1)
-        res = {"status": "ok", "detail": "http %d" % response.status}
+            raw_body = response.read().decode("utf-8", "replace")
+        usage_data = {}
+        try:
+            parsed_json = json.loads(raw_body)
+            rl = parsed_json.get("rate_limit") or {}
+            pw = rl.get("primary_window") or {}
+            sw = rl.get("secondary_window") or {}
+            if pw or sw:
+                usage_data = {
+                    "primary_used_percent": pw.get("used_percent"),
+                    "primary_window_seconds": pw.get("limit_window_seconds"),
+                    "primary_reset_after_seconds": pw.get("reset_after_seconds"),
+                    "secondary_used_percent": sw.get("used_percent"),
+                    "secondary_window_seconds": sw.get("limit_window_seconds"),
+                    "secondary_reset_after_seconds": sw.get("reset_after_seconds"),
+                }
+        except Exception:
+            pass
+        res = {"status": "ok", "detail": "http %d" % response.status, "usage": usage_data}
     except urllib.error.HTTPError as exc:
         body = ""
         try:
@@ -478,12 +497,12 @@ def probe_token(data: dict[str, Any] | None, timeout: float = PROBE_TIMEOUT) -> 
                 code = str(((parsed.get("error") or {}).get("code") or ""))
             except Exception:
                 pass
-            res = {"status": "revoked", "detail": (detail + " " + code).strip()}
+            res = {"status": "revoked", "detail": (detail + " " + code).strip(), "usage": {}}
         else:
-            res = {"status": "unknown", "detail": "http %d" % exc.code}
+            res = {"status": "unknown", "detail": "http %d" % exc.code, "usage": {}}
     except Exception as exc:
         hint = " (via %s)" % proxy if proxy else ""
-        res = {"status": "unknown", "detail": str(exc) + hint}
+        res = {"status": "unknown", "detail": str(exc) + hint, "usage": {}}
 
     _PROBE_CACHE[cache_key] = res
     return dict(res)

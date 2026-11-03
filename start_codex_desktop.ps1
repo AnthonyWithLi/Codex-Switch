@@ -389,6 +389,60 @@ function Get-LocalCodexProcesses {
         Select-Object -Property Name, ProcessId
 }
 
+function Format-DurationText {
+    param([int]$Seconds)
+    if ($Seconds -le 0) { return "" }
+    if ($Seconds -lt 3600) {
+        $m = [math]::Ceiling($Seconds / 60)
+        return "${m}m"
+    } elseif ($Seconds -lt 86400) {
+        $h = [math]::Round($Seconds / 3600, 1)
+        return "${h}h"
+    } else {
+        $d = [math]::Round($Seconds / 86400, 1)
+        return "${d}d"
+    }
+}
+
+function Format-UsageText {
+    param($Usage)
+    if (-not $Usage) { return "" }
+    $parts = New-Object System.Collections.Generic.List[string]
+
+    # Primary 窗口 (通常为 5h 滚动窗口，部分轻量套餐为周窗口)
+    if ($Usage.PSObject.Properties["primary_used_percent"] -and $null -ne $Usage.primary_used_percent) {
+        $pUsed = [int]$Usage.primary_used_percent
+        $pRem = 100 - $pUsed
+        if ($pRem -lt 0) { $pRem = 0 }
+        $winSec = if ($Usage.PSObject.Properties["primary_window_seconds"] -and $Usage.primary_window_seconds) { [int]$Usage.primary_window_seconds } else { 18000 }
+        $label = if ($winSec -eq 604800) { "周" } elseif ($winSec -eq 18000) { "5h" } else { "$([math]::Round($winSec / 3600))h" }
+        $pText = "${label}余$pRem%"
+        if ($pUsed -gt 0 -and $Usage.PSObject.Properties["primary_reset_after_seconds"] -and $Usage.primary_reset_after_seconds) {
+            $pDur = Format-DurationText -Seconds ([int]$Usage.primary_reset_after_seconds)
+            if ($pDur) { $pText += " ($($pDur)重置)" }
+        }
+        [void]$parts.Add($pText)
+    }
+
+    # Secondary 窗口 (通常为周窗口)
+    if ($Usage.PSObject.Properties["secondary_used_percent"] -and $null -ne $Usage.secondary_used_percent) {
+        $sUsed = [int]$Usage.secondary_used_percent
+        $sRem = 100 - $sUsed
+        if ($sRem -lt 0) { $sRem = 0 }
+        $winSec = if ($Usage.PSObject.Properties["secondary_window_seconds"] -and $Usage.secondary_window_seconds) { [int]$Usage.secondary_window_seconds } else { 604800 }
+        $label = if ($winSec -eq 604800) { "周" } else { "$([math]::Round($winSec / 3600))h" }
+        $sText = "${label}余$sRem%"
+        if ($sUsed -gt 0 -and $Usage.PSObject.Properties["secondary_reset_after_seconds"] -and $Usage.secondary_reset_after_seconds) {
+            $sDur = Format-DurationText -Seconds ([int]$Usage.secondary_reset_after_seconds)
+            if ($sDur) { $sText += " ($($sDur)重置)" }
+        }
+        [void]$parts.Add($sText)
+    }
+
+    if ($parts.Count -eq 0) { return "" }
+    return "[" + ($parts -join " · ") + "]"
+}
+
 function Format-SnapshotMeta {
     param($Meta, [string]$Name)
     if (-not $Meta) { return "" }
@@ -398,7 +452,12 @@ function Format-SnapshotMeta {
     if ($item.plan_label) { [void]$bits.Add([string]$item.plan_label) }
     if ($item.workspace_short) { [void]$bits.Add("工作区 " + [string]$item.workspace_short) }
     switch ([string]$item.token_status) {
-        "ok" { }
+        "ok" {
+            if ($item.PSObject.Properties["usage"] -and $item.usage) {
+                $usageText = Format-UsageText -Usage $item.usage
+                if ($usageText) { [void]$bits.Add($usageText) }
+            }
+        }
         "revoked" { [void]$bits.Add("会话探针 401，可试强制切换") }
         "expired" { [void]$bits.Add("token 待刷新") }
         "missing" { [void]$bits.Add("快照缺失") }
@@ -436,7 +495,7 @@ function Show-AccountPicker {
     if (Test-Path -LiteralPath $RepairLauncherExe) {
         $form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($RepairLauncherExe)
     }
-    $formWidth = 760
+    $formWidth = 980
     $labelHeight = 156
     $rowHeight = 34
     $rowGap = 38
